@@ -24,6 +24,33 @@ function Chat() {
 
     const room = "general";
 
+    const getReadReceipt = (msg) => {
+
+        if (msg.seen) {
+
+            return {
+                ticks: "✓✓",
+                label: "Read",
+                color: "#38bdf8",
+            };
+        }
+
+        if (msg.delivered) {
+
+            return {
+                ticks: "✓✓",
+                label: "Delivered",
+                color: "#cbd5e1",
+            };
+        }
+
+        return {
+            ticks: "✓",
+            label: "Sent",
+            color: "#cbd5e1",
+        };
+    };
+
     // Auto Scroll
     const scrollToBottom = () => {
 
@@ -66,13 +93,21 @@ function Chat() {
 
             setMessages((prev) => [...prev, data]);
 
-            // Mark as seen
+            // Mark as delivered/read
             if (data.sender !== username) {
 
                 socket.emit(
-                    "message_seen",
+                    "message_delivered",
                     data._id
                 );
+
+                if (!document.hidden && document.hasFocus()) {
+
+                    socket.emit(
+                        "message_seen",
+                        data._id
+                    );
+                }
             }
         });
 
@@ -96,6 +131,21 @@ function Chat() {
 
             setOnlineUsers(users);
         });
+
+        // Delivered Updates
+        socket.on(
+            "message_delivered_update",
+            (updatedMsg) => {
+
+                setMessages((prev) =>
+                    prev.map((msg) =>
+                        msg._id === updatedMsg._id
+                            ? updatedMsg
+                            : msg
+                    )
+                );
+            }
+        );
 
         // Seen Updates
         socket.on(
@@ -134,6 +184,8 @@ function Chat() {
             socket.off("show_typing");
 
             socket.off("online_users");
+
+            socket.off("message_delivered_update");
 
             socket.off("message_seen_update");
 
@@ -269,6 +321,11 @@ function Chat() {
 
                     const isOwnMessage =
                         msg.sender === username;
+                    const reactionLabel =
+                        msg.reaction?.reactedBy === username
+                            ? "you"
+                            : msg.reaction?.reactedBy;
+                    const readReceipt = getReadReceipt(msg);
 
                     return (
                         <div
@@ -330,8 +387,7 @@ function Chat() {
         >
             reacted by{" "}
             {
-                msg.reaction
-                    .reactedBy
+                reactionLabel
             }
         </span>
     </div>
@@ -346,9 +402,17 @@ function Chat() {
                                             opacity: 0.7,
                                         }}
                                     >
-                                        {msg.seen
-                                            ? "✓✓ Seen"
-                                            : "✓ Sent"}
+                                        <span
+                                            title={
+                                                readReceipt.label
+                                            }
+                                            style={{
+                                                color:
+                                                    readReceipt.color,
+                                            }}
+                                        >
+                                            {readReceipt.ticks}
+                                        </span>
                                     </div>
                                 )}
 
